@@ -1,6 +1,12 @@
 package cmd
 
-import "log"
+import (
+	"context"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+)
 
 func main() {
 
@@ -11,4 +17,13 @@ func main() {
 	}
 
 	// use later cfg
+
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	<-sigChan
+	log.Println("Shutting down...")
 }
