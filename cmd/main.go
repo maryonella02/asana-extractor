@@ -1,7 +1,10 @@
-package cmd
+package main
 
 import (
+	"asana-extractor/cmd/config"
+	"asana-extractor/internal"
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -10,13 +13,21 @@ import (
 
 func main() {
 
-	_, err := LoadConfig()
+	cfg, err := config.LoadConfig()
 	if err != nil {
 
 		log.Fatalf("could not load configs")
 	}
 
 	// use later cfg
+
+	asanaClient := internal.NewClient(cfg)
+
+	err = asanaClient.ExportUsersToFile()
+	if err != nil {
+		fmt.Errorf("error: %w", err)
+		return
+	}
 
 	_, cancel := context.WithCancel(context.Background())
 	defer cancel()
