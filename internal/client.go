@@ -15,9 +15,9 @@ const Users = "users"
 const Projects = "projects"
 
 type AsanaClient struct {
-	token      string
-	httpClient *http.Client
-	//rate limiter
+	token       string
+	httpClient  *http.Client
+	rateLimiter *FixedWindowRateLimiter
 }
 
 func NewClient(cfg *config.Config) *AsanaClient {
@@ -25,17 +25,21 @@ func NewClient(cfg *config.Config) *AsanaClient {
 		token: cfg.PAT,
 		httpClient: &http.Client{
 			Timeout: time.Duration(1) * time.Second,
+			// can be added read timeout
 		},
+		rateLimiter: NewFixedWindowRateLimiter(time.Minute, 150),
+		//can be added in config to be easily editable
 	}
 }
 
 func (a *AsanaClient) GetResource(path string) ([]byte, error) {
-	// TODO rate limit
-
+	err := a.rateLimiter.Allow()
+	if err != nil {
+		return nil, err
+	}
 	//URL should be extracted to config file or passed to function
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://app.asana.com/api/1.0/%s", path), nil)
 	if err != nil {
-		fmt.Printf("error %s", err)
 		return nil, err
 	}
 	req.Header.Add("Accept", `application/json`)
@@ -43,15 +47,14 @@ func (a *AsanaClient) GetResource(path string) ([]byte, error) {
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		fmt.Printf("error %s", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("error %s", err)
 		return nil, err
 	}
+
 	fmt.Printf("Body : %s \n ", body)
 	fmt.Printf("Response status : %s \n", resp.Status)
 
@@ -122,7 +125,7 @@ func writeToFile(path string, data Data) error {
 			return fmt.Errorf("failed to marshal %s: %w", path, err)
 		}
 
-		name := fmt.Sprintf("/output/%s/%s", path, resource.GID)
+		name := fmt.Sprintf("/output/%s/%s.txt", path, resource.GID)
 		if _, err := os.Stat(name); errors.Is(err, os.ErrNotExist) {
 
 			err = os.WriteFile(name, content, 0664)
